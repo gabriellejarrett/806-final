@@ -1,11 +1,12 @@
 ---
-title: "title"
-subtitle: "BIOL806 final project" 
-bibliography: bib.bib
+title: "Patterns of Microplastic Deposition in Salt Marshes of the Hampton-Seabrook Estuary"
+subtitle: "BIOL806 final project"
+bibliography: 806_final_proj.bib
 author: "Gabrielle Jarrett"
 institute: 'UNH'
 format:
-  html: 
+  html:
+    toc: true
     code-overflow: wrap
     code-fold: true
     embed-resources: true
