@@ -15,12 +15,506 @@ execute:
   message: false
 ---
 
-# Introduction 
+```{r, include=FALSE}
+# load packages 
+library(sf) #for GIS data
+library(tidyverse) 
+library(ggplot2)
+library(ggspatial) #plot maps
+library(rnaturalearth) 
+library(rnaturalearthdata)
+library(ggmap)
+library(patchwork) # for combining plots (creating an inset map)
+library(basemaps) 
+library(mapedit) # allows for interactive map selection in basemaps
+library(maps) # basic maps package
+library(dunn.test) #Dunn test for MP percent type
+library(FSA) #for dunn test
+library(car)
+library(multcomp)
+library(lme4) # for fitting glmms 
+library(sjPlot) # for visualizing mixed models 
+library(stringr)
+```
 
-# Methods 
+```{r, include=FALSE}
+# import primary dataset 
+
+#load HSE MP data - this is main dataset with info on sites and MP counts 
+MP <- read_csv('MP_no_Blackwater.csv')
+
+#Correct column types 
+MP$Site<-as.factor(MP$Site)
+MP$`Sample Name`<-as.factor(MP$`Sample Name`)
+MP$Estuary_Position<-as.factor(MP$Estuary_Position)
+MP$Marsh_Position<-as.factor(MP$Marsh_Position)
+MP$Depth<-as.factor(MP$Depth)
+MP$Total.MP<-as.numeric(MP$Total.MP)
+```
+
+# Abstract
+
+Microplastics, defined as plastic pieces smaller than 5 mm, are ubiquitous pollutants within the marine environment. Because 80% of marine plastic debris originates from land-based sources, estuaries are at significant risk of microplastic pollution as they are located at the terrestrial-aquatic interface. Salt marshes can receive and capture microplastics through particulate deposition during tidal flooding in these dynamic estuarine systems. Salt marshes accrete sediment and build elevation at relatively predictable rates, thus examination of salt marsh sediment cores may provide insight into temporal patterns of microplastic deposition within a given estuary. Sediment cores were exhumed from the salt marsh at ten locations within the HSE across upper (n = 6) and lower (n = 4) sites. At each sampling location, a core was obtained from both high and low marsh habitats. Cores were processed in a stepwise manner in the laboratory and resulting microplastics were counted and visually categorized using a dissecting microscope. Mean microplastic abundance was higher in the upper estuary compared to the lower estuary. On average, microplastics were more abundant in low marsh compared to high marsh. Mean microplastic abundance decreased with sediment depth, with the majority of microplastic particles were in the top 2 cm of sediment, representing approximately 10 years of accretion.
+
+# Introduction
+
+There is no doubt that we are living in a plastic age, geologically termed the Plasticene [@rangel-buitrago_2022]. Since the initial 1950s plastic boom, global primary plastic production has exponentially increased, with modern annual production at over 400 million tons (Mt) [@geyer_2017; @law_2020]. While plastic waste has followed a similar exponentially increasing trend, waste management has not kept up with waste demand, with approximately 20% of all postconsumer plastic recycled worldwide [@plastics_europe]. Decades of increasing plastic production coupled with insufficient proper waste management have resulted in significant amounts of plastic accumulating in the environment.
+
+Plastics are known to escape into the environment at every stage in their life - during production, transport, conversion, use, and disposal [@UNEP]. An estimated 19-23 Mt of plastic are entering aquatic ecosystems annually [@UNEP]. While plastic has been widely used for its lightweight and durable qualities, these same physical characteristics enable it to persist in the environment for extended periods of time. Plastics in the marine environment are exposed to a variety of stressors including physical abrasion and UV solar radiation that cause them to brittle and fragment [@UNEP; @andrady_2011]. Weakened plastics break into smaller pieces, known as microplastics.
+
+Microplastics, defined as plastic particles less than 5 mm in diameter, are a global threat within the marine environment. Microplastics originate from both primary (industrially produced \<5mm) and secondary (generated from the fragmentation of macroplastics) sources, with the majority attributed to secondary sources [@frias_2019]. These small particles, coined “microplastics” in the early 2000s, were first documented in the marine environment in the 1970s [@frias_2019; @carpenter_1972]. They have since been identified as a ubiquitous marine pollutant, found in the water column [@choy_2019], sediment [@lloret_2021], ice cores [@kanhai_2020], biota [@wilcox_2015], and salt [@peixoto_2019]. Microplastics in the marine environment are known to have widespread effects on environmental, biologic, economic, and even social health [@almeida_2023].
+
+Eighty percent of marine plastic pollution originates from land-based sources [@andrady_2011]. Located at the intersection of terrestrial and marine ecosystems, estuaries are habitats of critical concern for microplastic pollution. Estuaries are one of the most productive temperate ecosystems and provide a wide assortment of ecosystem services including carbon sequestration (notable blue carbon ecosystems), water filtration, protected habitat for marine species, coastal storm buffer, and economic benefit (recreation, tourism, aquaculture) [@almeida_2023; @booi_2022]. While these systems provide significant ecosystem services, they have historically been undervalued and misused.
+
+Salt marshes, a critical estuarine habitat, are especially sensitive to microplastic pollution due to their highly depositional nature. Salt marsh sediment effectively traps small plastic pollutants through sediment deposition, acting as a sink for microplastics [@almeida_2023; @lloret_2021]. Due to the historically consistent gradual rate of this natural deposition phenomena, a few centimeters of peat can represent years of accretion [@burdick]. These critical coastal wetlands face a multitude of contemporary threats both direct and indirect from anthropogenic activity including coastal development, pollutants, and sea level rise [@booi_2022; @watson_2017]. Salt marshes are in decline, with a global net loss rate of 0.28% per year over the past two decades [@campbell_2022]. New England salt marshes in particular have experienced 39% loss of historic coverage since the 1800’s [@bromberg_2005].
+
+While microplastics have been documented in salt marshes both globally and regionally within the Gulf of Maine, estuaries remain understudied compared to coastal (beach) and open marine environments [@li_2023; @brown_2023; @stead_2020; @lloret_2021]. With the threats and decline salt marsh systems face, it is important to further understand the extent of microplastic pollution as a potential factor affecting these critical coastal ecosystems. This study aims to assess microplastic presence and abundance within salt marsh sediment of the New England Hampton-Seabrook Estuary (HSE) with a focus on potential spatio-temporal variables driving microplastic deposition.
+
+# Methods
+
+Ten sites across the HSE, 4 lower estuary and 6 upper estuary, were sampled in the summer of 2021 @fig-site-map. Paired sediment cores, representing both high and low marsh habitat, were collected at each of the 10 sites. Sediment cores were collected using a piston coring device measuring 4 by 10 cm. The top 8-10 cm of each core was processed to determine microplastic abundance.
+
+```{r, include=FALSE}
+# SITE MAP CHUNK
+
+#load shp file with site locations 
+MP_geo <- st_read("/Users/gabriellejarrett/Desktop/HSEgeodata/MP_Sediment_Cores-point.shp") %>% 
+  mutate(Name = gsub("Browns River", "Brown's", Name), # change names to match between MP and MP_geo
+         Name = gsub("Taylor River", "Taylor's", Name))
+st_crs(MP_geo) # retrieve reference coordinate system - lat lon here 
+# MP_geo crs = 4326
+
+# join geo data to MP - get coordinates for each site
+MP_geo_combined <- MP %>% 
+  left_join(MP_geo, by = c("Sample Name" = "Name"))
+
+# separate lat and lon into separate columns 
+MP_geo_sep <- MP_geo_combined %>%
+  separate(geometry, into = c("lon", "lat"), sep = ", ") %>%
+  mutate(lon=as.numeric(gsub("c\\(","",lon)),
+         lat=as.numeric(gsub("\\)","",lat)))
+
+# pull in Google maps satellite imagery of HSE 
+register_google(key = "AIzaSyC969CwmD5ID53tIQsq1SGMeHqZkuBh3Uc")  # create API key for google maps
+location <- c(left = -70.9, bottom = 42.85, right = -70.8, top = 42.95) #defining coordinate boundaries for HSE 
+
+#pull in satellite map for HSE 
+estuary_map <- get_googlemap(center = c(lon = -70.82, lat = 42.90),
+                             zoom = 13, maptype = "satellite")
+ggmap(estuary_map)
+
+# add sample site coord points onto HSE map: 
+site_map <- ggmap(estuary_map) +
+  geom_point(data = MP_geo_sep %>% 
+               filter(Marsh_Position == 'High'), # remove low marsh - only have one point per site on map
+             aes(x = lon, y = lat, shape = Estuary_Position, color = Estuary_Position), size = 4) +
+  #  aes(x = lon, y = lat, shape = Estuary_Position, color = Estuary_Position, size = Total.MP)) + #look at how many MP found in diff parts of estuary visually - don't love
+  theme_void() +
+  scale_shape_manual(values = c("Upper" = 16, "Lower" = 17)) +  # Customize shapes - diff numbers
+  scale_color_manual(values = c("Lower" = 'lightsteelblue2', "Upper" = 'steelblue')) +
+  labs(title = "Hampton-Seabrook Estuary",
+       x = "Longitude", y = "Latitude", shape = "Estuary Position",
+       color = "Estuary Position") + 
+  theme(plot.title = element_text(hjust = 0.5, size = 15))  #center title 
+  
+
+site_map
+
+# Adding inset in corner showing larger region with box around HSE:
+# get map of east coast from google maps 
+nh_sat <- get_googlemap(center = c(lon = -70.82, lat = 42.90),
+                        zoom = 8, maptype = "satellite") 
+
+# define coordinates for box around HSE (roughly)
+xmin <- -70.9  #western boundary
+xmax <- -70.8  #eastern boundary
+ymin <- 42.84  #southern boundary
+ymax <- 43.0   #northern boundary
+
+# graph map with box on top
+nh_sat2 <- ggmap(nh_sat) +
+  annotate("rect", xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, 
+           fill = NA, color = "red", linetype = "solid", size = 1) +
+  theme_void() + 
+  theme(panel.border = element_rect(color = "black", size = 2, fill = NA)) #add black border
+
+# insert nh map into corner 
+site_map2 <- site_map + inset_element(nh_sat2,  
+                                      left = 0.41,  # decrease 'left' to shift the inset further left
+                                      bottom = 0.01,  # keep 'bottom' constant or lower for alignment
+                                      right = 1.2,  # increase 'right' to expand width
+                                      top = 0.4,  # increase 'top' to expand height
+                                      align_to = "panel") 
+site_map2
+# site map - DONE! 
+
+```
+
+```{r}
+#| label: fig-site-map
+#| fig-cap: 'Map of 10 sites sampled in the HSE'
+#| fig-align: 'center'
+
+site_map2
+```
+
+Local Sediment Elevation Table (SET) data collected within the HSE was used to measure the incremental accretion of the marsh. Through the use of this locally specific method of aging marsh sediment, it was determined that 2 cm of sediment represents roughly 10 years of sediment accretion [@burdick]. The top 8-10 cm of collected sediment cores were processed for microplastic presence, representing approximately 40 years of sediment accretion based on this regional SET data. The vertical sediment profiles thus represent accreted material from the 1980s to the present.
+
+Sediment cores were held on ice for transportation to the laboratory and stored at 4° C until processed. Cores were cut into 2 cm segments. Sediment cores measuring under 10 cm, as a result of degradation during transportation or insufficient core collection were processed to a depth of 8 cm. Resulting subsamples were dried in an oven at 60° C. Fully dry samples were homogenized with a mortar and pestle and 1 µm sieved using filtered deionized water, and dried again at 60°C. 30 mL filtered 30% Hydrogen Peroxide was added to filtrates for two days (48hr) to digest organic material. Samples were vacuum filtered onto a 5 µm PTFE filter. Samples containing significant amount of sediment after digestion were subjected to density separation with two rounds of 25 mL 1.5 g·cm-1 ZnCl solution, mixing, and decanting of floating solids onto a 5 µm PTFE filter. Microplastics were counted and visually categorized from filters using a dissecting microscope.
+
+As microplastics are ubiquitous in all environments, strict contamination control protocols were adapted to prevent sample contamination both in the field and laboratory (Lloret et al., 2021). Glass and metal instruments were used in place of plastic whenever possible in the field. Laboratory work was conducted under a fume hood when possible. All liquid reagents used throughout processing were filtered via vacuum filtration and a 5 µm PTFE filter. All in-progress samples were covered with foil or glass to prevent airborne microplastic contamination. Cotton lab coats were worn at all times in the laboratory to prevent contamination from synthetic clothing. All tools were triple rinsed with deionized water directly before use to minimize potential contamination.
+
+Statistical tests were completed in R. Figures were produced in R with packages ggplot2 and ggmaps.Because data did not meet assumptions, the Kruskal Wallis test was used to examine significance between microplastic types. Dunn's post hoc test was applied with a Bonferroni adjusted p value, and significance determined at the 0.05 level. Spatial datasets containing environmental factors, including wastew water effluent sites and flood zones, compiled by Hanna Mogensen were utilized to create maps.
 
 # Results
 
+```{r, include=FALSE}
+#ALL results 
+
+# MP present in all samples figure: 
+site_MP <- ggplot(MP %>% 
+         group_by(Site, Estuary_Position) %>% 
+         summarize(mean_MP = mean(Total.MP)) %>% 
+           mutate(site_number = Site)
+         , aes(x=Site, y=mean_MP)) +
+  geom_bar(stat = 'identity', fill = "lightsteelblue2") +
+  theme(strip.text.x = element_text(size=11),
+        strip.background = element_rect(fill="beige"), legend.title = element_blank()) +
+  theme(axis.text.x = element_text(size = 11)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  theme(axis.text = element_text(size=12),
+        axis.text.x = element_text(angle = 40, vjust = 1.1, hjust = 1), 
+        axis.title = element_text(size=14)) +  
+  labs(x ="Site", y = "Mean Microplastic Abundance")
+  
+
+
+
+# MP count by estuary and marsh figure
+# MP abundance with all 3 variables of interest (sediment depth, marsh habitat, estuary position) ! 
+
+# get SE 
+MP_SE <- MP %>%
+  group_by(Depth, Marsh_Position, Estuary_Position) %>%
+  summarize(n = n(), Mean.Total.MP = mean(Total.MP, na.rm = TRUE), SD = sd(Total.MP)) %>%
+  mutate(SE = SD/sqrt(n))
+
+MP.Graph.Estuary <- ggplot(MP_SE, aes(x = Mean.Total.MP, y = Depth, fill = Marsh_Position)) +
+  geom_col(position = "dodge") +
+  geom_errorbar(aes(xmin = Mean.Total.MP-SE, xmax = Mean.Total.MP+SE), width = .2,
+                position =position_dodge(.9)) +
+  facet_wrap(~Estuary_Position, 
+             labeller = as_labeller(c("Lower" = "Lower Estuary", 
+                                      "Upper" = "Upper Estuary"))) + #rename lower and upper to include "estuary" 
+  scale_fill_manual(values = c("lightsteelblue2", "steelblue"), labels = c("High Marsh", "Low Marsh")) +
+  scale_y_discrete(limits = rev) +
+  theme(legend.text = element_text(size = 11), legend.title = element_text(size = 12)) +
+  labs(fill = "Marsh Position") + #rename legend title 
+  theme(strip.text.x = element_text(size = 11),
+        strip.background = element_rect(fill = "beige")) + #USED TO BE ELEMENT_BLANK()
+  theme(axis.text.x = element_text(size = 11)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  theme(axis.text = element_text(size=12),
+        axis.title = element_text(size=14)) +  
+  labs(x ="Mean Microplastic Abundance", y = "Sediment Depth (cm)") 
+
+
+
+
+
+# MP count by sediment depth figure:
+#get SE 
+MP_Means_Depth <- MP %>%
+  group_by(Depth) %>%
+  summarize(n = n(), Mean.Total.MP = mean(Total.MP, na.rm = TRUE), SD_Depth = sd(Total.MP)) %>%
+  mutate(SE_Depth = SD_Depth/sqrt(n)) 
+
+
+MP.Depth <- ggplot(MP_Means_Depth, aes(x = Mean.Total.MP, y = Depth)) +
+  geom_col(position = "dodge", fill = "lightsteelblue2") + 
+  scale_y_discrete(limits = rev) + #switch order of y axis - want 0-2 at top to mimic sediment depth profile 
+  theme(strip.text.x = element_text(size=11),
+        strip.background = element_rect(fill="beige"), legend.title = element_blank()) +
+  theme(axis.text.x = element_text(size = 11)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  theme(axis.text = element_text(size=12),
+        axis.title = element_text(size=14)) +  
+  labs(x ="Mean Microplastic Abundance", y = "Sediment Depth (cm)") +
+  geom_errorbar(aes(xmin = Mean.Total.MP-SE_Depth, xmax = Mean.Total.MP+SE_Depth), width = .2,
+                position = position_dodge(.9)) 
+
+
+
+```
+
+Microplastics were present at all sites, in all samples (@fig-MP-site). A mean abundance of `r round(mean((dplyr::group_by(MP, Site))$Total.MP, na.rm = TRUE), 2)` plastic particles was found per site.
+
+```{r}
+#| label: fig-MP-site
+#| fig-cap: 'Microplastics were present in all samples'
+#| fig-align: 'center'
+
+site_MP
+```
+
+Examination of microplastic abundance by sediment depth revealed a downward trend in microplastic abundance with increasing depth from 2 - 8 cm (@fig-MP-Depth). The majority of microplastics were located within the top 2 cm of sediment (`r round(mean(dplyr::filter(MP, Depth == "0-2")$Total.MP), 2)`% of all particles), representing a little less than 10 years [@burdick].
+
+```{r}
+#| label: fig-MP-Depth
+#| fig-cap: 'Average microplastic abundance across all samples by sediment depth'
+#| fig-align: 'center'
+
+MP.Depth
+```
+
+Average microplastic abundances varies by both estuary position and marsh habitat (@fig-MP-Graph-Estuary). On average, more microplastics were found in the upper estuary (`r round(mean((dplyr::filter(MP, Estuary_Position == 'Upper'))$Total.MP, na.rm = TRUE), 1)` particles), compared to the lower estuary (`r round(mean((dplyr::filter(MP, Estuary_Position == 'Lower'))$Total.MP, na.rm = TRUE), 1)` particles). Average microplastic abundance was higher within low marsh (`r round(mean((dplyr::filter(MP, Marsh_Position == 'Low'))$Total.MP, na.rm = TRUE), 1)` particles) sediment compared to high marsh (`r round(mean((dplyr::filter(MP, Marsh_Position == 'High'))$Total.MP, na.rm = TRUE), 1)` particles).
+
+```{r}
+#| label: fig-MP-Graph-Estuary
+#| fig-cap: 'Average microplastic abundance with three variables of interest (estuary position, marsh habitat, sediment depth)'
+#| fig-align: 'center'
+
+MP.Graph.Estuary
+```
+
+```{r, include=FALSE}
+# MP type percent 
+
+# take average of each MP type by depth 
+MP_type_avg <- MP %>% 
+  group_by(Depth) %>% 
+  summarize(mean_total_MP = mean(Total.MP), mean_fiber = mean(`TOTAL Fibers`), mean_fiber_bundle = mean(`TOTAL Fiber Bundles`), mean_frag = mean(`Total Fragments`), mean_pellet = mean(`TOTAL Pellets`), mean_film = mean(`TOTAL Films`), mean_foam = mean(`TOTAL Foams`), mean_styrofoam = mean(`TOTAL Styrofoam`))
+
+# calculate percent of total for each MP type 
+percent_avg <- MP_type_avg %>% 
+  mutate(percent_fiber = (mean_fiber/mean_total_MP), percent_fiber_bundle = (mean_fiber_bundle/mean_total_MP), percent_frag = (mean_frag/mean_total_MP), percent_pellet = (mean_pellet/mean_total_MP), percent_film = (mean_film/mean_total_MP), percent_foam = (mean_foam/mean_total_MP), percent_styrofoam = (mean_styrofoam/mean_total_MP))
+
+# pivot percent_avg longer 
+percent_avg_longer <- percent_avg %>% 
+  pivot_longer(cols = c(percent_fiber, percent_fiber_bundle, percent_frag, percent_pellet, percent_film, percent_foam, percent_styrofoam), 
+               names_to = "Type",
+               names_prefix = "percent.",
+               values_to = "Percent",
+               values_drop_na = TRUE) %>% 
+  mutate(Percent2 = (Percent*100)) #percents out of 100 not 1
+
+# graph percent_avg_longer 
+MP_type_percent_depth <- ggplot(percent_avg_longer %>% 
+         mutate(Type = as.factor(Type)) %>% 
+         mutate(Type = fct_reorder(Type, Percent2))
+       , aes(x = Percent2, y = Depth, fill = Type)) +
+  geom_bar(stat = 'identity') +
+  scale_y_discrete(limits=rev) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab('Percent Microplastic Type') + ylab('Sediment Depth (cm)') +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  scale_fill_manual(name = 'Microplastic Type', 
+                      labels = c('Percent Styrofoams', 'Percent Foams', 'Percent Pellets', 'Percent Films', 'Percent Fiber Bundles', 'Percent Fragments', 'Percent Fibers'),
+                      values = c("#fdbf6f", "#e31b1b", "#fb9a99", "#34a02d", "#b2df8a", "#1f78b4", "#a6cee3"))
+
+
+
+
+#stats 
+
+#using Kruskal-Wallis for nonparametric one-way
+MP_type_kruskal <- kruskal.test(Percent2 ~ Type, data = percent_avg_longer)
+MP_type_kruskal
+
+dunn_test <- dunnTest(percent_avg_longer$Percent2 ~ percent_avg_longer$Type, method = "bonferroni")
+
+
+# Extract results and format as a data frame
+dunn_results <- as.data.frame(dunn_test$res)
+
+# Beautify the table with knitr::kable
+dunn_table <- dunn_results %>%
+  mutate(
+    Z = round(Z, 3),          # Round Z-scores
+    P.adj = formatC(P.adj, format = "e", digits = 3) # Format adjusted p-values
+  ) %>%
+  knitr::kable(
+    caption = "Results of Dunn's Test with Adjusted P-values",
+    col.names = c("Comparison", "Z-Score", "P-Value", "Adjusted P-Value"),
+    align = c("l", "c", "c", "c"),
+    format = "html"
+  ) %>%
+  kableExtra::kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed"),
+    full_width = FALSE
+  )
+
+```
+
+Five microplastic morphologies were found across all samples: fibers, fiber bundles, fragments, films, foams, pellets, and styrofoam (@fig-type). The mean percent of fibers `r round(100*mean(dplyr::filter(percent_avg_longer, Type == "fiber")$Percent), 1)`% significantly outnumbered all other microplastic types (X^2^~6~ = 24.4, p = 0.00045), confirmed by the post-hoc Dunn’s test (@fig-dunn-table).
+
+```{r}
+#| label: fig-type
+#| fig-cap: 'Microplastic Type Percent by Sediment Depth'
+#| fig-align: 'center'
+
+MP_type_percent_depth
+```
+
+```{r}
+#| label: fig-dunn-table
+#| fig-cap: "Post hoc Dunn's test results"
+#| fig-align: 'center'
+
+dunn_table
+```
+
+Flood hazard data within the HSE showed that all sample sites were within high flood risk areas (@fig-flood).
+
+```{r, include=FALSE}
+# MAPS 
+
+gdb_path <- "/Users/gabriellejarrett/Desktop/MPAnthro.gdb"  
+st_layers(gdb_path)  # List layers to identify exact names
+
+
+
+#pollution discharge sites layer:
+pollution_discharge_sites <- st_read(gdb_path, layer = "PollutionDischargeSites") 
+
+pollution_discharge_sites <- pollution_discharge_sites %>% 
+  st_transform(crs = 4326) %>%  #change UTM to lat long  
+  mutate(lon = st_coordinates(.)[, 1],  #extract lon from POINT
+         lat = st_coordinates(.)[, 2])  #extract lon from POINT
+
+# map pollution discharge sites onto HSE map - pull in satellite imagery for HSE again
+estuary_map2 <- get_googlemap(center = c(lon = -70.82, lat = 42.90),
+                              zoom = 13, maptype = "satellite")
+poll_source_map <- ggmap(estuary_map2) +
+  geom_point(data = pollution_discharge_sites %>% 
+               filter(CATEGORY == 'WW'), #only interested in WW (wastewater treatment effluenct sites) in HSE - waste water effluent known source of MP 
+             aes(x = lon, y = lat, color = 'hotpink'), size = 3) +
+  labs(title = "Waste Water Effluent Discharge Sites") +
+  theme(plot.title = element_text(hjust = 0.5, size = 15))  #center title 
+poll_source_map
+
+# okay slay made the map ! What now lol ??  How do I analyze this? What does this mean in relation to my data/site?? 
+
+
+#map WWE pollution sites and HSE sample sites on same map! 
+poll_and_sites <- ggmap(estuary_map2) + 
+  # Sample site points (High marsh only)
+  geom_point(data = MP_geo_sep %>%  
+               filter(Marsh_Position == 'High'), # Filter for High marsh
+             aes(x = lon, y = lat, color = Marsh_Position, shape = Marsh_Position), 
+             size = 3) +
+  # Pollution discharge sites (Wastewater effluent only)
+  geom_point(data = pollution_discharge_sites %>%  
+               filter(CATEGORY == 'WW'), # Filter for wastewater effluent
+             aes(x = lon, y = lat, color = CATEGORY, shape = CATEGORY), 
+             size = 3) +
+  scale_shape_manual(values = c("High" = 19, "WW" = 17),  
+                     labels = c("High" = "Sample Sites", "WW" = "Pollution Discharge Sites")) + #customize legend labels 
+  scale_color_manual(values = c("High" = "steelblue", "WW" = "red3"), 
+                     labels = c("High" = "Sample Sites", "WW" = "Pollution Discharge Sites")) +
+  labs(shape = "Site Type", color = "Site Type") +
+  theme_void() +
+  labs(title = "Pollution Discharge Sites in HSE") +
+  theme(plot.title = element_text(hjust = 0.5, size = 15))
+
+
+
+
+
+#FLD hazard map
+flood_haz <- st_read(gdb_path, layer = "FLD_HAZ_NH_HSE")
+
+flood_haz <- flood_haz %>% 
+  st_transform(crs = 4326) #change UTM to lat long  
+
+# map flood haz onto HSE estuary map
+estuary_map3 <- get_googlemap(center = c(lon = -70.82, lat = 42.90),
+                              zoom = 13, maptype = "satellite")
+
+# add flood_haz layer on top of HSE 
+fld_haz_map <- ggmap(estuary_map3) +
+  geom_sf(data = flood_haz, aes(fill = FLD_ZONE), inherit.aes = FALSE, alpha = 0.35, color = NA) +
+  scale_fill_manual(name = "Flood Zone Codes",  # change legend title 
+                    values = c("AE" = "red3", 
+                               "X" = "lightgreen", 
+                               "A" = "yellow", 
+                               "AO" = "orange", 
+                               "VE" = "hotpink"
+                    )) +
+  theme_minimal() +
+  labs(title = "HSE Flood Hazard Zones") +
+  theme(plot.title = element_text(hjust = 0.5, size = 15))  #center title 
+  
+
+fld_haz_map
+# Flood zone codes: starts w A or V = high risk flood area ; X = low risk flood area 
+# estuary is high risk flood area - coastal wetland 
+# flooding/extreme weather events known to be significant events to transport MP - potential factor affecting MP deposition in salt marsh sediment in HSE - HSE is high flood risk, flood risk only going to increase w SLR (Eastern US coast hot spot for SLR)
+
+flood_haz$FloodRisk <- ifelse(flood_haz$FLD_ZONE %in% c("AE", "A", "AO", "VE"), "High Flood Risk", "Low Flood Risk")
+
+
+fld_and_sites <- ggmap(estuary_map3) +
+  geom_sf(data = flood_haz, aes(fill = FloodRisk), inherit.aes = FALSE, alpha = 0.4, color = NA) +
+  scale_fill_manual(name = "Flood Zones",  # change legend title 
+                    values = c("High Flood Risk" = "red3", 
+                               "Low Flood Risk" = "lightgreen")) +
+  theme_void() +
+  labs(title = "HSE Flood Hazard Zones") +
+  theme(plot.title = element_text(hjust = 0.5, size = 15)) +  #center title 
+  geom_point(data = MP_geo_sep %>%   #sample site points: 
+               filter(Marsh_Position == 'High'), # remove low marsh - only have one point per site on map
+             aes(x = lon, y = lat, shape = Estuary_Position, color = Estuary_Position), size = 3)  +
+  scale_shape_manual(values = c("Upper" = 16, "Lower" = 17)) +  # Customize shapes - diff numbers
+  scale_color_manual(values = c("Lower" = 'lightsteelblue2', "Upper" = 'steelblue')) +
+  labs(shape = "Estuary Position", color = "Estuary Position")
+
+
+fld_and_sites 
+
+# Flood zone codes: starts w A or V = high risk flood area ; X = low risk flood area 
+# estuary is high risk flood area - coastal wetland 
+# flooding/extreme weather events known to be significant events to transport MP - potential factor affecting MP deposition in salt marsh sediment in HSE - HSE is high flood risk, flood risk only going to increase w SLR (Eastern US coast hot spot for SLR)
+
+
+```
+
+```{r}
+#| label: fig-flood
+#| fig-cap: 'Flood Hazard Zones and Sample Sites in the HSE'
+#| fig-align: 'center'
+
+fld_and_sites 
+```
+
+Several waste water effluent (WWE) discharge sites are located within the HSE and adjacent coastal waters (@fig-poll).
+
+```{r}
+#| label: fig-poll
+#| fig-cap: 'Pollution Discharge and Sediment Sample Sites in HSE'
+#| fig-align: 'center'
+
+poll_and_sites
+```
+
 # Discussion
+
+Microplastics are ubiquitous pollutants in the marine environment [@andrady_2011], supporting the finding of microplastics in all samples and sites investigated.
+
+Investigation of microplastics vertically down through the sediment column showed an increase in microplastic abundance with proximity to the marsh surface, with the most microplastics found in the top 2 cm of peat (@fig-MP-Depth). Increased microplastic deposition in recent sediments as shown through a vertical sediment profile is consistent with other findings from similar studies [@lloret_2021; @cheng2021]. Through the use of SETs, a regionally specific means of measuring salt marsh accretion, it was determined that 2cm of sediment represent approximately 10 years of accretion [@burdick]. With significantly more microplastics found in the top 2 cm of sediment, it can be determined that microplastic deposition has increased within the last decade. Plastic production has exponentially increased over time [@geyer_2017] and plastics are known to escape into the environment at high rates [@andrady_2011]. Decades of plastic use and accumulation of plastic in systems has likely resulted in increased plastic presence over time. Further, as microplastics are known to be suspended and transported via tides within salt marshes, an increase in microplastic deposition within recent years may be linked to changing hydrology within these systems. Sea level rise (SLR) is a known threat to these coastal wetlands, particularly in New England where regional SLR rates are up to 50% higher than the global average [@watson_2017]. Increased sea level results in more frequent and prolonged marsh flooding, with known detrimental effects on marsh plants, health, and structural integrity. Other hydrometeorological phenomena, including frequency and intensity of coastal flooding, tidal surges, precipitation, and storm activity, have all increased due to climate change. As seen in @fig-flood, all sites within this study are located within high flood risk areas. These climatic changes have a net effect of increased frequency and intensity of marsh flooding with less consistent draining of the marsh platform. With tides and storms known to be microplastic contamination and transportation sources [@cheng2021; @hitchcock2020], it is possible that more microplastics are being resuspended and transported within the estuary due to these more frequent flooding events and that the increase in microplastics in the top 2 cm of sediment is related to the increased inclement weather events. Additional concerns rise with potential increased microplastic input into the system indicating greater biological availability of said pollutants. While further models are required to investigate the relationship between increased microplastic deposition in salt marsh sediment within the past decade and increased coastal flooding as a result of climate change, this data initially suggests said relationship. 
+
+Mean microplastic abundance was higher in upper estuary sites compared to the lower estuary (@fig-MP-Graph-Estuary). With 80% of aquatic plastic pollution originating from terrestrial sources, upper estuary sites with closer proximity to terrestrial plastic pollution sources could be expected to have higher microplastic abundance [@andrady_2011]. Lower estuary sites also experience greater water mixing compared to the upper estuary, increasing the chance of microplastics being flushed from the system rather than depositing in sediment. 
+
+On average, microplastic abundance was higher in low marsh sediment compared to high marsh (@fig-MP-Graph-Estuary). Salt marshes systems experience regular tidal flooding. Low marsh naturally floods twice per tidal cycle on the high tide, while high marsh floods approximately twice per lunar cycle. More frequent flooding potentially provides greater opportunities for microplastics within the water column to deposit into the sediment. Based on this predictive model, low marsh habitat would have higher microplastic abundance compared to the high marsh.
+
+Microfibers, filamentous synthetic fibers, were the predominant microplastic morphology found across all samples (@fig-type). Microfibers are dominantly present in marine environments and are known to have longer residence times, higher accumulation rates, and higher acute toxicity based on their shape [@chen2024]. This finding of microfibers as the primary form of microplastic pollution is congruent with the results of other, similar studies [@novak2024]. Notably, WWE discharge sites are a known point source of microplastic particles, and microfibers in particular [@UNEP; @chen2024]. As seen in @fig-poll, there are several WWE discharge sites within and directly adjacent to HSE, potentially contributing to this finding of microfibers as the major microplastic type found in HSE sediments.
+
+# Note
+
+Supplemental material including full R script utilized to produce statistics and figures presented above can be found at https://github.com/gabriellejarrett/806-final/tree/main 
 
 # Bibliography
